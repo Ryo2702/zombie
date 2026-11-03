@@ -1,0 +1,24 @@
+.hospital-background,.patient-layer{position:absolute;inset:0;width:576px;height:1024px;pointer-events:none;overflow:hidden}
+.hospital-background{z-index:0;background:#101713}
+.room-structure,.patient-layer>svg{display:block;width:576px;height:1024px}
+.ward-sign,.quarantine-sign{position:absolute;top:56px;color:#a9b4a2;font-family:monospace;font-size:15px;letter-spacing:3px;line-height:1.2;text-shadow:0 2px 2px #000;transform:scaleY(.95)}
+.ward-sign{left:67px}.ward-sign strong{font-weight:400;color:#c0c8b4}.quarantine-sign{right:61px;font-size:12px;letter-spacing:2px;text-align:right}
+.ward-sign small,.quarantine-sign small{display:block;margin-top:5px;font-size:6px;letter-spacing:1.6px;color:#7d8f78}
+.quarantine-sign small{font-size:5.5px;letter-spacing:.7px}
+.quarantine-beacon{position:absolute;top:51px;left:269px;width:38px;height:32px;background:linear-gradient(90deg,#111810,#46503a 48%,#141a12);border:1px solid #090e09;border-radius:9px 9px 2px 2px;box-shadow:0 4px 5px #0008}
+.quarantine-beacon i{position:absolute;left:6px;top:3px;width:24px;height:22px;border-radius:8px 8px 2px 2px;background:radial-gradient(ellipse at 40% 25%,#9e4143,#4d121b 60%,#210c0c);border:1px solid #7b3f3a;box-shadow:inset 3px 0 3px #9b716029}
+.quarantine-beacon span{position:absolute;left:7px;top:4px;width:22px;height:20px;border-radius:8px 8px 2px 2px;background:radial-gradient(ellipse at 45% 40%,#ffd8c7,#f82948 40%,#b4052b);opacity:var(--beacon);box-shadow:0 0 14px #ff294d,0 0 45px 13px #ec163847}
+.quarantine-beacon b{position:absolute;left:-3px;bottom:-3px;width:42px;height:6px;background:linear-gradient(#5d6752,#131b12);border:1px solid #070d08}
+.fluorescent{position:absolute;top:98px;height:16px;width:166px;background:linear-gradient(#151f17,#4a5948 40%,#121d13);border:2px solid #0b130c;box-shadow:0 4px 10px #0009}
+.fluorescent-left{left:65px;transform:rotate(.3deg)}.fluorescent-right{right:65px;transform:rotate(-.4deg)}
+.fluorescent i{position:absolute;left:9px;right:9px;top:3px;height:2px;background:#c6d5b6;opacity:calc(var(--fluorescent)*.8);box-shadow:0 0 5px #d1ebaf70,0 0 20px 6px #b5d39615}
+.fluorescent i+i{top:8px;background:#8fa489}
+.fluorescent span{position:absolute;inset:1px;background:repeating-linear-gradient(90deg,transparent 0px,transparent 22px,#253521 22px,#253521 25px)}
+.room-red,.patient-emergency{opacity:var(--emergency)}.room-amber{opacity:var(--amber)}
+.room-darkness{position:absolute;inset:0;background:#020805;opacity:calc((1 - var(--room-ambient))*.6)}
+.observation-shadow{opacity:calc(var(--emergency)*.55)}
+.patient-layer{z-index:3;clip-path:inset(746px 0 0 0)}
+.patient-head{transform-box:fill-box;transform-origin:50% 85%;transform:rotate(var(--head-turn)) translateX(var(--twitch))}
+.patient-body{transform:translateY(var(--breath)) translateX(var(--twitch));transform-origin:288px 1024px}
+.patient-eyes{opacity:var(--eyes)}
+.patient-darkness{position:absolute;inset:746px 0 0;background:linear-gradient(0deg,#02070455,transparent 65%,#02070466);opacity:calc(1 - var(--emergency)*.25)}
