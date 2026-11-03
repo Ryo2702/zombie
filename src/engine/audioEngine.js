@@ -12,6 +12,14 @@ export function createAudioEngine() {
   let siren;
   let sirenPitch;
   let alarm;
+  let soundtrackBuffer;
+  let soundtrackLoad;
+  let soundtrack;
+  let soundtrackEnvelope;
+  let soundtrackGain;
+  let soundtrackStart = 0;
+  let soundtrackOffset = 0;
+  let soundtrackRate = 1;
   let volume = 0.5;
   let muted = false;
   let previous = null;
@@ -20,8 +28,19 @@ export function createAudioEngine() {
   let unavailable = false;
   const continuous = [];
   const transient = new Set();
+  const soundtrackVoices = new Set();
+
+  function stopSoundtrack() {
+    if (!soundtrack) return;
+    const now = context.currentTime;
+    soundtrackEnvelope.gain.cancelScheduledValues(now);
+    soundtrackEnvelope.gain.setTargetAtTime(0, now, 0.003);
+    soundtrack.stop(now + 0.015);
+    soundtrack = null;
+  }
 
   function clearSounds() {
+    stopSoundtrack();
     for (const source of transient) {
       try { source.stop(); } catch { /* A source may already have ended. */ }
       source.disconnect();
@@ -34,6 +53,10 @@ export function createAudioEngine() {
     const oscillator = context.createOscillator();
     const envelope = context.createGain();
     const now = context.currentTime;
+    // Briefly make space for the foreground monitor and warning tones.
+    soundtrackGain.gain.cancelScheduledValues(now);
+    soundtrackGain.gain.setTargetAtTime(0.35, now, 0.008);
+    soundtrackGain.gain.setTargetAtTime(0.65, now + duration, 0.08);
     oscillator.type = type;
     oscillator.frequency.setValueAtTime(frequency, now);
     if (endFrequency) oscillator.frequency.exponentialRampToValueAtTime(endFrequency, now + duration);
@@ -125,6 +148,9 @@ export function createAudioEngine() {
         siren = oscillator(460, 0);
         sirenPitch = continuous.at(-1).frequency;
         alarm = oscillator(920, 0);
+        soundtrackGain = context.createGain();
+        soundtrackGain.gain.value = 0.65;
+        soundtrackGain.connect(gate);
       } catch {
         unavailable = true;
         for (const source of continuous) { try { source.stop(); } catch { /* Initialization may be incomplete. */ } source.disconnect(); }
@@ -134,7 +160,31 @@ export function createAudioEngine() {
         return false;
       }
     }
-    try { await context.resume(); unavailable = false; return true; } catch { return false; }
+    try {
+      // Resume during the gesture; loading may finish after the simulation starts.
+      const resumed = context.resume();
+      if (!soundtrackBuffer && !soundtrackLoad) {
+        const activeContext = context;
+        soundtrackLoad = (async () => {
+          // WAV also supports browsers without an Ogg Vorbis decoder.
+          for (const extension of ['ogg', 'wav']) {
+            try {
+              const response = await fetch(`${import.meta.env?.BASE_URL ?? '/'}audio/patient-zero.${extension}`, { signal: AbortSignal.timeout(10000) });
+              if (!response.ok) throw new Error(`Soundtrack HTTP ${response.status}`);
+              const buffer = await activeContext.decodeAudioData(await response.arrayBuffer());
+              if (!disposed && context === activeContext) soundtrackBuffer = buffer;
+              return;
+            } catch (error) {
+              if (disposed || extension === 'wav') throw error;
+            }
+          }
+        })().finally(() => { soundtrackLoad = null; });
+      }
+      await Promise.all([resumed, soundtrackLoad]);
+      if (disposed) return false;
+      unavailable = false;
+      return true;
+    } catch { unavailable = true; return false; }
   }
 
   return {
@@ -156,7 +206,7 @@ export function createAudioEngine() {
       }
     },
     reset() { this.seek(0); },
-    update(time, playing, vitals, phase) {
+    update(time, playing, vitals, phase, rate = 1) {
       if (!context || disposed) { previous = time; return; }
       const now = context.currentTime;
       gate.gain.setTargetAtTime(playing ? 1 : 0, now, 0.02);
@@ -165,6 +215,26 @@ export function createAudioEngine() {
         wasPlaying = false;
         previous = time;
         return;
+      }
+      if (soundtrackBuffer && context.state === 'running' && time < soundtrackBuffer.duration) {
+        const position = soundtrackOffset + (now - soundtrackStart) * soundtrackRate;
+        if (soundtrack && (Math.abs(position - time) > 0.12 || rate !== soundtrackRate)) stopSoundtrack();
+        if (!soundtrack) {
+          soundtrack = context.createBufferSource();
+          soundtrackEnvelope = context.createGain();
+          soundtrackEnvelope.gain.value = 0;
+          soundtrackEnvelope.gain.setTargetAtTime(1, now, 0.003);
+          soundtrack.buffer = soundtrackBuffer;
+          soundtrack.playbackRate.value = rate;
+          soundtrack.connect(soundtrackEnvelope).connect(soundtrackGain);
+          const source = soundtrack, envelope = soundtrackEnvelope;
+          soundtrackVoices.add(source);
+          source.onended = () => { source.disconnect(); envelope.disconnect(); soundtrackVoices.delete(source); };
+          soundtrack.start(now, Math.max(0, time));
+          soundtrackStart = now;
+          soundtrackOffset = time;
+          soundtrackRate = rate;
+        }
       }
       flatline.gain.setTargetAtTime(vitals.hr === 0 && phase.id === 'flatline' ? 0.085 : 0, now, 0.06);
       rumble.gain.setTargetAtTime(time >= 47.5 ? 0.04 + clamp((time - 59.5) / 5) * 0.045 : 0, now, 0.1);
@@ -188,6 +258,8 @@ export function createAudioEngine() {
     dispose() {
       disposed = true;
       clearSounds();
+      for (const source of soundtrackVoices) { source.stop(); source.disconnect(); }
+      soundtrackVoices.clear();
       for (const source of continuous) { try { source.stop(); } catch { /* Already stopped. */ } source.disconnect(); }
       continuous.length = 0;
       if (context && context.state !== 'closed') context.close().catch(() => {});

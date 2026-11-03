@@ -29,7 +29,7 @@ export default function App() {
     let lastUI = -1, lastPlaying = false, lastPhase = -1;
     const audio = createAudioEngine();
     audioRef.current = audio;
-    const clock = createSimulationClock(({time,playing}) => {
+    const clock = createSimulationClock(({time,playing,rate}) => {
       const state = deriveState(time,reducedRef.current);
       const canvas = canvasRef.current;
       if (canvas) {
@@ -40,7 +40,7 @@ export default function App() {
         renderMonitor(ctx,440,190,state,reducedRef.current);
       }
       if (stageRef.current) stageRef.current.style.transform = `translate(${state.glitch.shakeX}px,${state.glitch.shakeY}px) rotate(${state.glitch.rotation}deg)`;
-      audio.update(time,playing,state.vitals,state.phase);
+      audio.update(time,playing,state.vitals,state.phase,rate);
       const now = performance.now();
       if (lastFrame.current) frameRate.current = frameRate.current*.9 + Math.min(120,1000/(now-lastFrame.current))*.1;
       lastFrame.current = now;
@@ -65,10 +65,18 @@ export default function App() {
     media.addEventListener('change',onChange);return()=>media.removeEventListener('change',onChange);
   },[]);
 
-  const enableAudio = () => { audioRef.current.init().then(()=>setAudioStatus(audioRef.current.status)).catch(()=>setAudioStatus('unavailable')); };
-  const play = () => { enableAudio();setStarted(true); const c=clockRef.current; if(c.state.playing) c.pause(); else {if(c.state.time>=67) audioRef.current.reset(); c.play();} };
+  const enableAudio = () => audioRef.current.init().then(()=>setAudioStatus(audioRef.current.status)).catch(()=>setAudioStatus('unavailable'));
+  const play = async () => {
+    const c = clockRef.current;
+    if (c.state.playing) { c.pause(); return; }
+    await enableAudio();
+    if (document.hidden) return;
+    setStarted(true);
+    if (c.state.time >= 67) audioRef.current.reset();
+    c.play();
+  };
   const seek = time => { audioRef.current.seek(time); clockRef.current.seek(time); };
-  const replay = () => {enableAudio();setStarted(true);audioRef.current.reset();clockRef.current.restart();};
+  const replay = async () => {await enableAudio();if(document.hidden)return;setStarted(true);audioRef.current.reset();clockRef.current.restart();};
   const mute = () => {enableAudio();setMuted(value=>{audioRef.current.setMuted(!value);return !value;});};
   const changeVolume = value => {enableAudio();setVolume(value);setMuted(false);audioRef.current.setMuted(false);audioRef.current.setVolume(value);};
   useEffect(() => {
